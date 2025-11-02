@@ -18,7 +18,7 @@ if 'materiais_produto' not in st.session_state:
 # CORREÇÃO DO KEYERROR: Garante que o Session State use a nova estrutura
 if 'custos_venda' not in st.session_state or 'custo_fixo' in st.session_state.custos_venda:
     st.session_state.custos_venda = {
-        'custo_fixo_mo_embalagem': 15.00,
+        'custo_fixo_mo_embalagem': 0.00, # CUSTO FIXO ZERADO (Mão de Obra removida, Embalagem pode ser tratada como custo fixo)
         'preco_venda': 150.00,
         'taxa_imposto': 0.0, 
         
@@ -91,7 +91,8 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
     # 3. CUSTOS TOTAIS
     custos_marketplace_total = valor_taxa_comissao + valor_taxa_por_item + valor_custo_frete
     
-    custo_producao_base = custo_material_total + custo_fixo_mo_embalagem
+    # Mão de Obra removida: Custo base é apenas materiais e embalagem
+    custo_producao_base = custo_material_total + custo_fixo_mo_embalagem 
     
     custo_total_venda = custo_producao_base + custos_marketplace_total + valor_taxa_imposto
     
@@ -119,7 +120,7 @@ def formatar_brl(valor):
 # --- Título Principal ---
 
 st.title("💰 Calculadora de Lucro Real - Personalizados")
-st.caption("Insira os dados nas abas 'Insumos' e 'Marketplace' para ver o 'Resumo'.")
+st.caption("Insira os dados nas abas 'Materiais' e 'Taxas de Venda' para ver o 'Resumo'.")
 
 # --------------------------------------------------------------------------
 # --- CÁLCULO E PREPARAÇÃO DE DADOS ANTES DAS ABAS ---
@@ -161,16 +162,16 @@ for material in st.session_state.materiais_produto:
 # --- DEFINIÇÃO DAS ABAS ---
 # --------------------------------------------------------------------------
 
-tab1, tab2, tab3 = st.tabs(["1. Resumo & Lucro Final", "2. Insumos & Montagem", "3. Taxas de Venda"])
+tab1, tab2, tab3 = st.tabs(["1. Resumo & Lucro Final", "2. Materiais & Custos", "3. Taxas de Venda"])
 
 
 # ==========================================================================
-# --- ABA 1: RESUMO & LUCRO FINAL (INCLUI CAMPO DE VENDA) ---
+# --- ABA 1: RESUMO & LUCRO FINAL ---
 # ==========================================================================
 with tab1:
-    st.header("1A. Preço de Venda")
+    st.header("Preço de Venda")
     
-    # Campo de Venda movido para cá
+    # Campo de Venda
     st.session_state.custos_venda['preco_venda'] = st.number_input(
         "Preço de Venda ao Cliente (R$)",
         min_value=0.01,
@@ -181,7 +182,7 @@ with tab1:
     )
     
     st.markdown("---")
-    st.header("1B. Análise Rápida de Resultado")
+    st.header("Análise Rápida de Resultado")
     
     if lucro_real > 0:
         status = "LUCRO POSITIVO 🎉"
@@ -210,7 +211,7 @@ with tab1:
         st.info(f"""
         **Custos de Produção (R$):**
         * **Materiais do Produto:** {formatar_brl(custo_total_materiais_produto)}
-        * **Custos Fixos (MO/Embalagem):** {formatar_brl(st.session_state.custos_venda['custo_fixo_mo_embalagem'])}
+        * **Custo Fixo de Embalagem:** {formatar_brl(st.session_state.custos_venda['custo_fixo_mo_embalagem'])}
         * **Custo Base Total:** {formatar_brl(custo_producao_base)}
         * **Lucro Bruto (Antes de Taxas):** {formatar_brl(lucro_bruto)}
         """)
@@ -228,31 +229,31 @@ with tab1:
         st.error(f"⚠️ **Atenção:** Você precisa aumentar o preço de venda ou reduzir os custos em {formatar_brl(abs(lucro_real))} para ter lucro!")
 
 # ==========================================================================
-# --- ABA 2: INSUMOS & MONTAGEM (INCLUI CUSTO FIXO) ---
+# --- ABA 2: MATERIAIS & CUSTOS (REESTRUTURADA) ---
 # ==========================================================================
 with tab2:
     
-    # --- NOVO CAMPO DE CUSTO FIXO (Movido do Aba 3) ---
-    st.header("2A. Custos Fixos de Produção")
+    # --- CUSTO FIXO DE EMBALAGEM (Mão de Obra removida) ---
+    st.header("Custo Fixo de Embalagem")
     st.session_state.custos_venda['custo_fixo_mo_embalagem'] = st.number_input(
-        "Custo Fixo (Mão de Obra e Embalagem) por Unidade (R$)",
+        "Custo da Embalagem (Caixa/Plástico) por Unidade (R$)",
         min_value=0.00,
         value=st.session_state.custos_venda['custo_fixo_mo_embalagem'],
         step=0.01,
         format="%.2f",
-        help="Custos de serviço e valor da embalagem (caixa/plástico) por unidade."
+        help="Custo fixo da embalagem utilizada (caixa, plástico bolha, etc.)."
     )
     st.markdown("---")
 
-    # --- SUB-SEÇÃO: CÁLCULO DE INSUMOS BASE (Valor Unitário por Pacote) ---
-    st.header("2B. Custo Unitário de Insumos (Pacotes)")
+    # --- CUSTO DO MATERIAL (PACOTES) ---
+    st.header("Custo do Material (Pacotes)")
     st.caption("Defina o custo unitário real de materiais comprados em embalagens.")
 
     col_i_add, col_i_remove = st.columns([1, 1])
     with col_i_add:
-        st.button("➕ Adicionar Insumo (Pacote)", on_click=adicionar_insumo, use_container_width=True, type="primary")
+        st.button("➕ Adicionar Material (Pacote)", on_click=adicionar_insumo, use_container_width=True, type="primary")
     with col_i_remove:
-        st.button("➖ Remover Último Insumo", on_click=remover_ultimo_insumo, use_container_width=True, type="secondary")
+        st.button("➖ Remover Último Material", on_click=remover_ultimo_insumo, use_container_width=True, type="secondary")
 
     for i, insumo in enumerate(st.session_state.insumos_base):
         col_nome, col_pacote, col_qtd, col_unidade = st.columns([2, 1.5, 1, 1.5])
@@ -293,13 +294,13 @@ with tab2:
 
     st.markdown("---")
 
-    # --- SUB-SEÇÃO: MONTAGEM DO PRODUTO (Uso de Materiais) ---
-    st.header("2C. Montagem do Produto por Unidade")
+    # --- MONTAGEM DO PRODUTO POR UNIDADE ---
+    st.header("Uso de Material por Unidade do Produto")
     st.caption("Quais materiais e em qual quantidade são usados para *uma* unidade do seu produto.")
     
     col_m_add, col_m_remove = st.columns([1, 1])
     with col_m_add:
-        st.button("➕ Adicionar Material ao Produto", on_click=adicionar_material_produto, use_container_width=True, key="btn_add_prod", type="primary")
+        st.button("➕ Adicionar Material Usado", on_click=adicionar_material_produto, use_container_width=True, key="btn_add_prod", type="primary")
     with col_m_remove:
         st.button("➖ Remover Último Material", on_click=remover_ultimo_material_produto, use_container_width=True, key="btn_remove_prod", type="secondary")
 
@@ -370,11 +371,11 @@ with tab2:
                 st.caption("Custo Total")
 
     st.markdown("---")
-    st.subheader("Total de Custo com Materiais do Produto: " + formatar_brl(custo_total_materiais_produto))
+    st.subheader("Total de Custo com Materiais Usados: " + formatar_brl(custo_total_materiais_produto))
 
 
 # ==========================================================================
-# --- ABA 3: TAXAS DE VENDA (SIMPLIFICADA E LIMPA) ---
+# --- ABA 3: TAXAS DE VENDA (LIMPA) ---
 # ==========================================================================
 with tab3:
     st.header("Taxas de Venda (Marketplace e Frete)")
