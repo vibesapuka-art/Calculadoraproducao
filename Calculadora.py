@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 import io 
-import json # Novo: para manipular a estrutura de backup
+import json 
+import time
 
 # --- Configurações Iniciais e Session State ---
 st.set_page_config(
@@ -29,7 +30,7 @@ if 'custos_venda' not in st.session_state or 'custo_fixo_mo_embalagem' not in st
         'custo_frete': {'tipo': 'fixo', 'valor': 15.00}
     }
 
-# --- Funções de Manipulação do Session State (Mantidas) ---
+# --- Funções de Manipulação do Session State ---
 
 def adicionar_insumo():
     """Adiciona um novo insumo base (pacote/unidade)"""
@@ -54,7 +55,7 @@ def remover_ultimo_material_produto():
         st.session_state.materiais_produto[0] = {'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}
 
 
-# --- Funções de Backup e Restauração (Novas) ---
+# --- Funções de Backup e Restauração ---
 
 def criar_backup_json():
     """Compila os dados importantes do session state em uma string JSON."""
@@ -79,6 +80,10 @@ def restaurar_estado(uploaded_file):
             st.session_state.materiais_produto = data.get('materiais_produto', [])
             st.session_state.custos_venda = data.get('custos_venda', {})
             
+            # Confirmação visual antes do rerun
+            with st.spinner("Restaurando configurações..."):
+                time.sleep(1) 
+
             st.success("✅ Configurações restauradas com sucesso! Recarregando a aplicação...")
             # Força o reran para atualizar a tela com os novos dados
             st.experimental_rerun()
@@ -89,7 +94,7 @@ def restaurar_estado(uploaded_file):
             st.error(f"❌ Ocorreu um erro ao restaurar os dados: {e}")
 
 
-# --- Funções de Cálculo (Mantidas) ---
+# --- Função de Cálculo Principal (Direto) ---
 
 def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx_imposto, taxas_mp):
     
@@ -110,9 +115,10 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
         venda
     )
 
+    # CHAVE CORRIGIDA: 'custo_frete'
     valor_custo_frete = calcular_custo_flexivel(
         taxas_mp['custo_frete']['tipo'],
-        taxas_mp['custas_frete']['valor'],
+        taxas_mp['custo_frete']['valor'], 
         venda
     )
     
@@ -176,7 +182,7 @@ def calcular_preco_sugerido_lucro_fixo(custo_material_total, custo_fixo_mo_embal
 def formatar_brl(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- FUNÇÃO PARA CONVERTER O RESULTADO EM CSV (Mantida) ---
+# --- FUNÇÃO PARA CONVERTER O RESULTADO EM CSV ---
 def convert_data_to_csv(data_dict, preco_sugerido, margem_real):
     df_data = {
         'Metrica': [
@@ -206,7 +212,8 @@ def convert_data_to_csv(data_dict, preco_sugerido, margem_real):
     
     # Gera o CSV e codifica em UTF-8
     buffer = io.StringIO()
-    df.to_csv(buffer, index=False, sep=';', encoding='utf-8')
+    # Usando ';' como separador para melhor compatibilidade com Excel em PT-BR
+    df.to_csv(buffer, index=False, sep=';', encoding='utf-8') 
     return buffer.getvalue().encode('utf-8')
 
 
@@ -240,6 +247,7 @@ for material in st.session_state.materiais_produto:
 # 3. CÁLCULO MOCK (Para exibição na Aba 3)
 PRECO_MOCK = 100.00
 
+# Execução do cálculo mock (usando o preço de R$ 100 para calcular custos fixos/percentuais para a Aba 3)
 (
     _, 
     _, 
@@ -258,14 +266,14 @@ PRECO_MOCK = 100.00
 )
 
 # --------------------------------------------------------------------------
-# --- DEFINIÇÃO DAS ABAS (Quatro Abas Agora) ---
+# --- DEFINIÇÃO DAS ABAS ---
 # --------------------------------------------------------------------------
 
 tab1, tab2, tab3, tab4 = st.tabs(["1. Preço Sugerido (Lucro R$)", "2. Materiais & Custos", "3. Taxas de Venda", "4. Backup & Exportação"])
 
 
 # ==========================================================================
-# --- ABA 1: PREÇO SUGERIDO (Mantida) ---
+# --- ABA 1: PREÇO SUGERIDO ---
 # ==========================================================================
 with tab1:
     
@@ -320,7 +328,7 @@ with tab1:
         
         margem_real_sugerida = (lucro_real_sugerido / preco_sugerido) * 100 if preco_sugerido > 0 else 0.0
 
-        # Armazenar os resultados para o CSV na Aba 4
+        # Armazenar os resultados no Session State para uso na Aba 4
         resultado_final = {
             'custo_total_sugerido': custo_total_sugerido,
             'lucro_real_sugerido': lucro_real_sugerido,
@@ -331,7 +339,7 @@ with tab1:
             'valor_frete_sugerido': valor_frete_sugerido,
             'custo_material_total': custo_total_materiais_produto
         }
-        st.session_state['resultado_final'] = resultado_final # Salva no session state para uso na Aba 4
+        st.session_state['resultado_final'] = resultado_final
         st.session_state['preco_sugerido'] = preco_sugerido
         st.session_state['margem_real_sugerida'] = margem_real_sugerida
         st.session_state['lucro_fixo_desejado'] = lucro_fixo_desejado
@@ -364,6 +372,7 @@ with tab1:
             st.info(f"""
             **1. Custos de Produção (R$):**
             * Materiais do Produto: {formatar_brl(custo_total_materiais_produto)}
+            * Custo Fixo/MO/Embalagem: {formatar_brl(st.session_state.custos_venda['custo_fixo_mo_embalagem'])}
             * **Subtotal Base:** {formatar_brl(custo_producao_base_sugerido)}
             """)
     
@@ -380,11 +389,10 @@ with tab1:
 
 
 # ==========================================================================
-# --- ABA 2: MATERIAIS & CUSTOS --- (Mantida)
+# --- ABA 2: MATERIAIS & CUSTOS --- 
 # ==========================================================================
 with tab2:
     
-    # ... (Conteúdo da Aba 2 mantido) ...
     # --- CUSTO DO MATERIAL (PACOTES) COM SELETOR ML/UN ---
     st.header("Custo do Material (Pacotes e Embalagens)")
     st.caption("Defina o custo unitário (UN) ou por mililitro (ML) dos materiais que você compra.")
@@ -540,11 +548,23 @@ with tab2:
                 st.caption("Custo Total")
 
     st.markdown("---")
-    st.subheader("Total de Custo com Materiais Usados: " + formatar_brl(custo_total_materiais_produto))
+    st.subheader("Custo Fixo/MO/Embalagem Adicional")
+    st.session_state.custos_venda['custo_fixo_mo_embalagem'] = st.number_input(
+        "R$ Custo Fixo por Produto (Ex: Mão de Obra, Embalagem)",
+        min_value=0.0,
+        value=st.session_state.custos_venda['custo_fixo_mo_embalagem'],
+        step=0.10,
+        format="%.2f",
+        key="custo_fixo_mo_embalagem_input",
+        help="Custo que você tem por unidade, que não é material (e.g., R$ 2,50 de tempo/mão de obra, R$ 1,50 de embalagem)."
+    )
+    
+    st.markdown("---")
+    st.subheader("Total de Custo com Materiais Usados: " + formatar_brl(custo_total_materiais_produto + st.session_state.custos_venda['custo_fixo_mo_embalagem']))
 
 
 # ==========================================================================
-# --- ABA 3: TAXAS DE VENDA --- (Mantida)
+# --- ABA 3: TAXAS DE VENDA --- 
 # ==========================================================================
 with tab3:
     st.header("Taxas de Venda (Marketplace, Impostos e Frete)")
@@ -616,7 +636,7 @@ with tab3:
 
 
 # ==========================================================================
-# --- ABA 4: BACKUP & EXPORTAÇÃO (Nova) ---
+# --- ABA 4: BACKUP & EXPORTAÇÃO ---
 # ==========================================================================
 with tab4:
     
@@ -658,7 +678,7 @@ with tab4:
     # Verifica se o cálculo da Aba 1 foi executado (se as chaves existem)
     if 'resultado_final' in st.session_state and 'preco_sugerido' in st.session_state:
         
-        col_csv, col_print = st.columns(2)
+        col_csv, col_print = st.columns([1, 2])
         
         with col_csv:
             csv_data = convert_data_to_csv(
@@ -680,9 +700,8 @@ with tab4:
             st.markdown("##### Gerar PDF da Tela")
             st.info("""
             Use o atalho **`Ctrl+P`** (ou `Cmd+P` no Mac) do seu navegador. 
-            Selecione 'Salvar como PDF' para exportar a tela completa, incluindo todas as abas abertas.
+            Selecione 'Salvar como PDF' para exportar a tela completa, **incluindo todas as abas abertas**!
             """)
             
     else:
         st.warning("⚠️ O cálculo principal na Aba 1 deve ser executado pelo menos uma vez para gerar os dados de exportação (CSV).")
-
