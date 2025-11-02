@@ -9,15 +9,12 @@ st.set_page_config(
 )
 
 # Inicializa o Session State.
-# IMPORTANTE: Os valores de quantidade no pacote (qtd_pacote) devem ser float (X.0) 
-# para evitar o erro StreamlitMixedNumericTypesError.
 if 'insumos_base' not in st.session_state:
     st.session_state.insumos_base = [{'nome': 'Ex: Papel Pacote', 'valor_pacote': 27.50, 'qtd_pacote': 50.0, 'unidade': 'UN'}]
 
 if 'materiais_produto' not in st.session_state:
     st.session_state.materiais_produto = [{'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}]
 
-# Garante que o Session State use a estrutura mais recente
 if 'custos_venda' not in st.session_state or 'custo_fixo_mo_embalagem' not in st.session_state.custos_venda:
     st.session_state.custos_venda = {
         'custo_fixo_mo_embalagem': 0.00, # Valor zerado
@@ -34,7 +31,6 @@ if 'custos_venda' not in st.session_state or 'custo_fixo_mo_embalagem' not in st
 
 def adicionar_insumo():
     """Adiciona um novo insumo base (pacote/unidade)"""
-    # IMPORTANTE: Usar 1.0 (float) para evitar erros de tipo
     st.session_state.insumos_base.append({'nome': '', 'valor_pacote': 0.00, 'qtd_pacote': 1.0, 'unidade': 'UN'})
 
 def remover_ultimo_insumo():
@@ -42,7 +38,6 @@ def remover_ultimo_insumo():
     if len(st.session_state.insumos_base) > 1:
         st.session_state.insumos_base.pop()
     elif len(st.session_state.insumos_base) == 1:
-        # IMPORTANTE: Usar 1.0 (float) para evitar erros de tipo
         st.session_state.insumos_base[0] = {'nome': 'Ex: Papel Pacote', 'valor_pacote': 0.00, 'qtd_pacote': 1.0, 'unidade': 'UN'}
 
 # --- Funções de Manipulação do Session State (Montagem do Produto) ---
@@ -66,45 +61,33 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
     def calcular_custo_flexivel(tipo, valor, venda):
         if tipo == 'percentual':
             return venda * (valor / 100)
-        return valor # É um custo fixo
+        return valor
     
-    # Taxa de Comissão (Marketplace)
     valor_taxa_comissao = calcular_custo_flexivel(
         taxas_mp['taxa_comissao']['tipo'],
         taxas_mp['taxa_comissao']['valor'],
         venda
     )
 
-    # Taxa por Item Vendido
     valor_taxa_por_item = calcular_custo_flexivel(
         taxas_mp['taxa_por_item']['tipo'],
         taxas_mp['taxa_por_item']['valor'],
         venda
     )
 
-    # Custo de Frete
     valor_custo_frete = calcular_custo_flexivel(
         taxas_mp['custo_frete']['tipo'],
         taxas_mp['custo_frete']['valor'],
         venda
     )
     
-    # 2. OUTRAS TAXAS (Imposto)
     valor_taxa_imposto = venda * (tx_imposto / 100) 
-    
-    # 3. CUSTOS TOTAIS
     custos_marketplace_total = valor_taxa_comissao + valor_taxa_por_item + valor_custo_frete
-    
-    # Custo Fixo (mo de obra/embalagem/outros)
     custo_producao_base = custo_material_total + custo_fixo_mo_embalagem 
-    
     custo_total_venda = custo_producao_base + custos_marketplace_total + valor_taxa_imposto
-    
-    # 4. LUCROS
     lucro_bruto = venda - custo_producao_base
     lucro_real = venda - custo_total_venda
     
-    # Retorno completo dos valores (8 variáveis)
     return (
         custo_total_venda, 
         lucro_bruto, 
@@ -113,50 +96,46 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
         custo_producao_base,
         valor_taxa_comissao,
         valor_taxa_por_item,
-        valor_custo_frete # Corrigido NameError (agora é valor_custo_frete)
+        valor_custo_frete
     )
 
-# --- Função de Cálculo Reverso (Preço Sugerido) ---
+# --- Função de Cálculo Reverso (Lucro Fixo Desejado) ---
 
-def calcular_preco_sugerido(custo_material_total, tx_imposto, taxas_mp, margem_lucro_desejada):
-    """Calcula o preço de venda ideal baseado na margem de lucro desejada."""
+def calcular_preco_sugerido_lucro_fixo(custo_material_total, custo_fixo_mo_embalagem, tx_imposto, taxas_mp, lucro_fixo_desejado):
+    """Calcula o preço de venda ideal baseado em um lucro fixo desejado (R$)."""
     
     # 1. Componentes Percentuais
     comissao_percentual = 0.0
     if taxas_mp['taxa_comissao']['tipo'] == 'percentual':
         comissao_percentual = taxas_mp['taxa_comissao']['valor'] / 100
         
-    # 2. Componentes Fixos
-    custo_base_fixo = custo_material_total
+    # 2. Componentes Fixos (Custos de Produção + Taxas Fixas de Venda + Lucro Fixo Desejado)
     
+    # Custo de produção base é sempre fixo
+    custo_base_producao = custo_material_total + custo_fixo_mo_embalagem
+    
+    # Soma as taxas FIXAS (Taxa por Item, Frete, e Comissão Fixa se aplicável)
     custos_fixos_mp = 0.0
-    # Adiciona Taxa por Item FIXA
     if taxas_mp['taxa_por_item']['tipo'] == 'fixo':
         custos_fixos_mp += taxas_mp['taxa_por_item']['valor']
-    # Adiciona Custo de Frete FIXO
     if taxas_mp['custo_frete']['tipo'] == 'fixo':
         custos_fixos_mp += taxas_mp['custo_frete']['valor']
-        
-    # Adiciona Taxa de Comissão FIXA (temporariamente como custo fixo)
-    custo_fixo_comissao = 0.0
     if taxas_mp['taxa_comissao']['tipo'] == 'fixo':
-        custo_fixo_comissao = taxas_mp['taxa_comissao']['valor']
+        custos_fixos_mp += taxas_mp['taxa_comissao']['valor']
+
+    # Numerador: Custo total fixo a ser coberto + Lucro desejado
+    numerador = custo_base_producao + custos_fixos_mp + lucro_fixo_desejado
     
-    custo_fixo_total = custo_base_fixo + custos_fixos_mp + custo_fixo_comissao
-    
-    # 3. Denominador (Percentuais)
+    # 3. Denominador (Percentuais que reduzem a receita)
     imposto_percentual = tx_imposto / 100
-    margem_desejada_decimal = margem_lucro_desejada / 100
     
-    # O preço precisa cobrir a margem de lucro, comissão % e imposto %
-    percentual_total_perda_e_lucro = margem_desejada_decimal + comissao_percentual + imposto_percentual
-    
-    denominador = 1 - percentual_total_perda_e_lucro
+    # 1 - (percentual de comissão + percentual de imposto)
+    denominador = 1 - (comissao_percentual + imposto_percentual)
     
     if denominador <= 0:
-        return 0.0, 'inválido' 
+        return 0.0, 'inválido'
         
-    preco_sugerido = custo_fixo_total / denominador
+    preco_sugerido = numerador / denominador
     
     return preco_sugerido, 'ok'
 
@@ -169,7 +148,7 @@ def formatar_brl(valor):
 # --- Título Principal ---
 
 st.title("💰 Calculadora de Lucro Real - Personalizados")
-st.caption("Insira os dados nas abas 'Materiais' e 'Taxas de Venda' para a análise de preço.")
+st.caption("Ajuste os **Materiais** e as **Taxas de Venda** e use a Aba 1 para definir seu Preço.")
 
 # --------------------------------------------------------------------------
 # --- CÁLCULO E PREPARAÇÃO DE DADOS ANTES DAS ABAS ---
@@ -193,7 +172,7 @@ for material in st.session_state.materiais_produto:
     qtd_usada = material.get('qtd_usada', 0.00)
     custo_total_materiais_produto += custo_unitario * qtd_usada
 
-# 3. CÁLCULO DIRETO (Para uso no modo "Lucro Atual")
+# 3. CÁLCULO DIRETO (Para uso no modo "Lucro Atual" da Aba 1)
 (
     custo_total, 
     lucro_bruto, 
@@ -220,22 +199,110 @@ tab1, tab2, tab3 = st.tabs(["1. Resumo & Lucro Final", "2. Materiais & Custos", 
 
 
 # ==========================================================================
-# --- ABA 1: RESUMO & LUCRO FINAL (RESTRUTURADA) ---
+# --- ABA 1: RESUMO & LUCRO FINAL (LUCR0 FIXO) ---
 # ==========================================================================
 with tab1:
     
-    st.header("Modo de Cálculo")
+    st.header("Modo de Análise Principal")
     
-    # Alternador de modo
+    # Alternador de modo (Agora com a nova opção como a primeira e principal)
     modo_calculo = st.radio(
         "Selecione o modo de análise:",
-        options=["💰 Calcular Lucro Atual (Preço Fixo)", "🎯 Preço Sugerido (Lucro Desejado)"],
+        options=["🎯 Preço Sugerido (Lucro Fixo Desejado)", "💰 Calcular Lucro Atual (Preço Fixo)"],
         horizontal=True
     )
     
     st.markdown("---")
 
-    if modo_calculo == "💰 Calcular Lucro Atual (Preço Fixo)":
+    if modo_calculo == "🎯 Preço Sugerido (Lucro Fixo Desejado)":
+        
+        st.subheader("1. Lucro Fixo Desejado")
+        
+        # Entrada de Lucro Fixo Desejado (R$)
+        lucro_fixo_desejado = st.number_input(
+            "Qual o **Lucro Fixo** (em R$) você deseja ter por venda?",
+            min_value=0.00,
+            value=5.00,
+            step=0.50,
+            format="%.2f",
+            help="Este é o valor exato que sobrará após todos os custos serem pagos."
+        )
+        
+        # --- Cálculo Reverso ---
+        preco_sugerido, status = calcular_preco_sugerido_lucro_fixo(
+            custo_total_materiais_produto,
+            st.session_state.custos_venda['custo_fixo_mo_embalagem'],
+            st.session_state.custos_venda['taxa_imposto'],
+            st.session_state.custos_venda,
+            lucro_fixo_desejado
+        )
+        
+        if status == 'inválido':
+            st.error("⚠️ **Erro de Cálculo:** As taxas de comissão e imposto juntas ultrapassam 100%. Verifique as taxas na Aba 3.")
+        else:
+            
+            st.subheader("2. Preço de Venda Ideal")
+            
+            # Recalcula o lucro e os custos usando o preço sugerido (para exibição detalhada)
+            (
+                custo_total_sugerido, 
+                lucro_bruto_sugerido, 
+                lucro_real_sugerido, 
+                valor_imposto_sugerido, 
+                custo_producao_base_sugerido,
+                valor_comissao_sugerida,
+                valor_item_sugerido,
+                valor_frete_sugerido
+            ) = calcular_lucro_real(
+                preco_sugerido,
+                custo_total_materiais_produto,
+                st.session_state.custos_venda['custo_fixo_mo_embalagem'], 
+                st.session_state.custos_venda['taxa_imposto'],
+                st.session_state.custos_venda
+            )
+            
+            margem_real_sugerida = (lucro_real_sugerido / preco_sugerido) * 100 if preco_sugerido > 0 else 0.0
+
+            # --- Exibe o Resultado ---
+            
+            col_sugerido, col_custo_t, col_lucro_r = st.columns(3)
+
+            with col_sugerido:
+                st.metric("Preço Sugerido ao Cliente", formatar_brl(preco_sugerido))
+                st.caption(f"Margem Real: {margem_real_sugerida:,.1f}%")
+
+            with col_custo_t:
+                st.metric("Custo Total da Venda", formatar_brl(custo_total_sugerido))
+
+            with col_lucro_r:
+                st.metric(f"Lucro Real Atingido (Desejado: {formatar_brl(lucro_fixo_desejado)})", formatar_brl(lucro_real_sugerido))
+            
+            st.success(f"**Recomendação:** Seu lucro real será de aproximadamente **{formatar_brl(lucro_real_sugerido)}** se você vender a **{formatar_brl(preco_sugerido)}**.")
+            
+            # --- Detalhamento ---
+            st.markdown("##### Detalhamento do Preço Sugerido:")
+
+            col_ds1, col_ds2 = st.columns(2)
+            
+            with col_ds1:
+                st.info(f"""
+                **1. Custos de Produção (R$):**
+                * Materiais do Produto: {formatar_brl(custo_total_materiais_produto)}
+                * **Subtotal Base:** {formatar_brl(custo_producao_base_sugerido)}
+                """)
+        
+            with col_ds2:
+                st.info(f"""
+                **2. Custos de Venda e Lucro (R$):**
+                * Taxa de Comissão (MP): {formatar_brl(valor_comissao_sugerida)}
+                * Taxa por Item + Frete: {formatar_brl(valor_item_sugerido + valor_frete_sugerido)}
+                * Impostos/Outras Taxas ({st.session_state.custos_venda['taxa_imposto']}%): {formatar_brl(valor_imposto_sugerido)}
+                * **Lucro Real Desejado:** {formatar_brl(lucro_fixo_desejado)}
+                """)
+            
+            st.markdown(f"**Total (Custo Base + Venda + Lucro) = {formatar_brl(preco_sugerido)}**")
+            
+    else: # Modo Calcular Lucro Atual (Preço Fixo)
         
         st.subheader("1. Preço de Venda Definido")
         # Campo de Venda (Cálculo Direto)
@@ -285,95 +352,10 @@ with tab1:
             * **Taxa por Item + Frete:** {formatar_brl(valor_item + valor_frete)}
             * **Impostos/Outras Taxas ({st.session_state.custos_venda['taxa_imposto']}%):** {formatar_brl(valor_imposto)}
             """)
-        
-    else: # Modo Cálculo Reverso (Preço Sugerido)
-        
-        st.subheader("1. Margem de Lucro Desejada")
-        
-        # Entrada de Lucro Desejado
-        margem_desejada = st.slider(
-            "Qual a margem de **lucro real** (em %) você deseja ter em cima do preço de venda?",
-            min_value=5,
-            max_value=70,
-            value=25,
-            step=1,
-            format="%d%%",
-            help="Esta é a margem de lucro que sobrará após *todos* os custos (materiais, taxas, impostos) serem pagos."
-        )
-        
-        # --- Cálculo Reverso ---
-        preco_sugerido, status = calcular_preco_sugerido(
-            custo_total_materiais_produto,
-            st.session_state.custos_venda['taxa_imposto'],
-            st.session_state.custos_venda,
-            margem_desejada
-        )
-        
-        if status == 'inválido':
-            st.error("⚠️ **Erro de Cálculo:** A margem de lucro e as taxas de comissão e imposto juntas ultrapassam 100%. Verifique as taxas na Aba 3.")
-        else:
-            
-            st.subheader("2. Preço de Venda Ideal")
-            
-            # Recalcula o lucro e os custos usando o preço sugerido (para exibição detalhada)
-            (
-                custo_total_sugerido, 
-                lucro_bruto_sugerido, 
-                lucro_real_sugerido, 
-                valor_imposto_sugerido, 
-                custo_producao_base_sugerido,
-                valor_comissao_sugerida,
-                valor_item_sugerido,
-                valor_frete_sugerido
-            ) = calcular_lucro_real(
-                preco_sugerido,
-                custo_total_materiais_produto,
-                st.session_state.custos_venda['custo_fixo_mo_embalagem'], 
-                st.session_state.custos_venda['taxa_imposto'],
-                st.session_state.custos_venda
-            )
-
-            # --- Exibe o Resultado ---
-            
-            col_sugerido, col_custo_b, col_lucro_r = st.columns(3)
-
-            with col_sugerido:
-                st.metric("Preço Sugerido ao Cliente", formatar_brl(preco_sugerido))
-
-            with col_custo_b:
-                st.metric("Custo Base (Materiais)", formatar_brl(custo_total_materiais_produto))
-
-            with col_lucro_r:
-                st.metric(f"Lucro Real Atingido (Desejado: {margem_desejada}%)", formatar_brl(lucro_real_sugerido), delta=formatar_brl(lucro_real_sugerido))
-            
-            st.success(f"**Recomendação:** Seu lucro real será de aproximadamente **{margem_desejada}%** se você vender a **{formatar_brl(preco_sugerido)}**.")
-            
-            # --- Detalhamento (Opcional, mas útil) ---
-            st.markdown("##### Detalhamento do Preço Sugerido:")
-
-            col_ds1, col_ds2 = st.columns(2)
-            
-            with col_ds1:
-                st.info(f"""
-                **1. Custos de Produção (R$):**
-                * Materiais do Produto: {formatar_brl(custo_total_materiais_produto)}
-                * **Subtotal Base:** {formatar_brl(custo_producao_base_sugerido)}
-                """)
-        
-            with col_ds2:
-                st.info(f"""
-                **2. Custos de Venda e Lucro (R$):**
-                * Taxa de Comissão (MP): {formatar_brl(valor_comissao_sugerida)}
-                * Taxa por Item + Frete: {formatar_brl(valor_item_sugerido + valor_frete_sugerido)}
-                * Impostos/Outras Taxas ({st.session_state.custos_venda['taxa_imposto']}%): {formatar_brl(valor_imposto_sugerido)}
-                * **Lucro Real (Margem {margem_desejada}%):** {formatar_brl(lucro_real_sugerido)}
-                """)
-            
-            st.markdown(f"**Total (Custo Base + Venda + Lucro) = {formatar_brl(preco_sugerido)}**")
 
 
 # ==========================================================================
-# --- ABA 2: MATERIAIS & CUSTOS ---
+# --- ABA 2: MATERIAIS & CUSTOS --- (MANTIDA)
 # ==========================================================================
 with tab2:
     
@@ -413,7 +395,6 @@ with tab2:
 
         # 3. Quantidade no Pacote
         with col_qtd:
-            # TODOS OS VALORES SÃO FLUTUANTES (1.0)
             insumo['qtd_pacote'] = st.number_input(
                 "Qtd/Pacote", 
                 min_value=1.0, 
@@ -488,7 +469,6 @@ with tab2:
                     label_visibility="collapsed" if i > 0 else "visible"
                 )
             
-            # Ajustar a legenda da quantidade usada com base na unidade do insumo (apenas informativo)
             unidade_tipo_uso = 'UN'
             for insumo in st.session_state.insumos_base:
                 if insumo['nome'] == material['nome']:
@@ -538,7 +518,7 @@ with tab2:
 
 
 # ==========================================================================
-# --- ABA 3: TAXAS DE VENDA (LIMPA) ---
+# --- ABA 3: TAXAS DE VENDA (MANTIDA) ---
 # ==========================================================================
 with tab3:
     st.header("Taxas de Venda (Marketplace, Impostos e Frete)")
