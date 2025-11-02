@@ -14,7 +14,7 @@ if 'insumos_base' not in st.session_state:
     st.session_state.insumos_base = [{'nome': 'Ex: Papel Pacote', 'valor_pacote': 27.50, 'qtd_pacote': 50}]
 
 if 'materiais_produto' not in st.session_state:
-    # CORREÇÃO APLICADA AQUI: qtd_usada inicializada como float (1.0)
+    # CORREÇÃO DE TIPO (float) aplicada para evitar StreamlitMixedNumericTypesError
     st.session_state.materiais_produto = [{'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}]
 
 # Inicializa o Session State para outros custos/venda (valores padrão)
@@ -43,7 +43,7 @@ def remover_ultimo_insumo():
 
 def adicionar_material_produto():
     """Adiciona um item à lista de materiais usados na montagem do produto."""
-    # CORREÇÃO APLICADA AQUI: novo item com qtd_usada como float (1.0)
+    # CORREÇÃO DE TIPO (float)
     st.session_state.materiais_produto.append({'nome': '', 'custo_unidade': 0.00, 'qtd_usada': 1.0})
 
 def remover_ultimo_material_produto():
@@ -53,9 +53,10 @@ def remover_ultimo_material_produto():
     elif len(st.session_state.materiais_produto) == 1:
         st.session_state.materiais_produto[0] = {'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}
 
-# --- Função de Cálculo Principal ---
+# --- Função de Cálculo Principal (CORRIGIDA) ---
 
 def calcular_lucro_real(venda, custo_material_total, custo_fixo_total, tx_mp, tx_imposto):
+    """Calcula todos os custos e lucros. Garante o retorno de 6 valores."""
     valor_taxa_mp = venda * (tx_mp / 100)
     valor_taxa_imposto = venda * (tx_imposto / 100)
     
@@ -65,6 +66,7 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_total, tx_mp, tx
     lucro_bruto = venda - custo_producao_base
     lucro_real = venda - custo_total_venda
     
+    # RETORNO COMPLETO DE 6 VARIÁVEIS (CORREÇÃO DO NameError)
     return custo_total_venda, lucro_bruto, lucro_real, valor_taxa_mp, valor_imposto, custo_producao_base
 
 # --- Função de Formatação (Padrão BRL) ---
@@ -94,7 +96,7 @@ for material in st.session_state.materiais_produto:
     qtd_usada = material.get('qtd_usada', 0.00)
     custo_total_materiais_produto += custo_unitario * qtd_usada
 
-# 3. CÁLCULO FINAL (usando valores do Session State)
+# 3. CÁLCULO FINAL 
 custo_total, lucro_bruto, lucro_real, valor_mp, valor_imposto, custo_producao_base = calcular_lucro_real(
     st.session_state.custos_venda['preco_venda'],
     custo_total_materiais_produto,
@@ -116,7 +118,6 @@ tab1, tab2, tab3 = st.tabs(["1. Resumo & Lucro Final", "2. Insumos & Montagem", 
 with tab1:
     st.header("Análise Rápida de Resultado")
     
-    # Define a cor e status do lucro
     if lucro_real > 0:
         status = "LUCRO POSITIVO 🎉"
     elif lucro_real == 0:
@@ -138,7 +139,6 @@ with tab1:
     st.markdown("---")
     st.subheader("Detalhamento dos Custos:")
 
-    # Exibe os detalhes em colunas para organização
     col_d1, col_d2 = st.columns(2)
     
     with col_d1:
@@ -267,18 +267,16 @@ with tab2:
                 )
                 material['custo_unidade'] = custo_unidade
             else:
-                # Exibe o custo unitário calculado
                 st.markdown(f"R$ **{material['custo_unidade']:,.4f}**")
                 if i == 0:
                     st.caption("Custo Unitário")
 
         # 3. Campo de Quantidade Usada
         with col_qtd:
-            # ESTA É A LINHA CORRIGIDA (Linha ~276)
             material['qtd_usada'] = st.number_input(
                 "Qtd Usada",
                 min_value=0.01,
-                value=material['qtd_usada'], # AGORA ESTE VALOR SEMPRE SERÁ FLOAT (1.0)
+                value=material['qtd_usada'],
                 step=0.01,
                 key=f"material_qtd_{i}",
                 label_visibility="collapsed" if i > 0 else "visible"
