@@ -8,17 +8,17 @@ st.set_page_config(
     layout="wide" 
 )
 
-# Inicializa o Session State para ambos os tipos de entrada
+# Inicializa o Session State. Adicionamos 'unidade' ao insumo base.
 if 'insumos_base' not in st.session_state:
-    st.session_state.insumos_base = [{'nome': 'Ex: Papel Pacote', 'valor_pacote': 27.50, 'qtd_pacote': 50}]
+    st.session_state.insumos_base = [{'nome': 'Ex: Papel Pacote', 'valor_pacote': 27.50, 'qtd_pacote': 50, 'unidade': 'UN'}]
 
 if 'materiais_produto' not in st.session_state:
     st.session_state.materiais_produto = [{'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}]
 
-# CORREÇÃO DO KEYERROR: Garante que o Session State use a nova estrutura
-if 'custos_venda' not in st.session_state or 'custo_fixo' in st.session_state.custos_venda:
+# Garante que o Session State use a estrutura mais recente
+if 'custos_venda' not in st.session_state or 'custo_fixo_mo_embalagem' not in st.session_state.custos_venda:
     st.session_state.custos_venda = {
-        'custo_fixo_mo_embalagem': 0.00, # CUSTO FIXO ZERADO (Mão de Obra removida, Embalagem pode ser tratada como custo fixo)
+        'custo_fixo_mo_embalagem': 0.00, # Mantido zerado no cálculo, mas necessário para a função principal
         'preco_venda': 150.00,
         'taxa_imposto': 0.0, 
         
@@ -32,14 +32,15 @@ if 'custos_venda' not in st.session_state or 'custo_fixo' in st.session_state.cu
 
 def adicionar_insumo():
     """Adiciona um novo insumo base (pacote/unidade)"""
-    st.session_state.insumos_base.append({'nome': '', 'valor_pacote': 0.00, 'qtd_pacote': 1})
+    # Adicionamos 'unidade' por padrão como 'UN'
+    st.session_state.insumos_base.append({'nome': '', 'valor_pacote': 0.00, 'qtd_pacote': 1, 'unidade': 'UN'})
 
 def remover_ultimo_insumo():
     """Remove o último insumo base adicionado."""
     if len(st.session_state.insumos_base) > 1:
         st.session_state.insumos_base.pop()
     elif len(st.session_state.insumos_base) == 1:
-        st.session_state.insumos_base[0] = {'nome': 'Ex: Papel Pacote', 'valor_pacote': 0.00, 'qtd_pacote': 1}
+        st.session_state.insumos_base[0] = {'nome': 'Ex: Papel Pacote', 'valor_pacote': 0.00, 'qtd_pacote': 1, 'unidade': 'UN'}
 
 # --- Funções de Manipulação do Session State (Montagem do Produto) ---
 
@@ -91,7 +92,7 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
     # 3. CUSTOS TOTAIS
     custos_marketplace_total = valor_taxa_comissao + valor_taxa_por_item + valor_custo_frete
     
-    # Mão de Obra removida: Custo base é apenas materiais e embalagem
+    # Custo Fixo agora representa apenas a embalagem (que está zerada/removida do UI)
     custo_producao_base = custo_material_total + custo_fixo_mo_embalagem 
     
     custo_total_venda = custo_producao_base + custos_marketplace_total + valor_taxa_imposto
@@ -109,7 +110,7 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
         custo_producao_base,
         valor_taxa_comissao,
         valor_taxa_por_item,
-        valor_custo_frete
+        valor_frete
     )
 
 # --- Função de Formatação (Padrão BRL) ---
@@ -129,7 +130,13 @@ st.caption("Insira os dados nas abas 'Materiais' e 'Taxas de Venda' para ver o '
 # 1. CÁLCULO DE INSUMOS BASE
 insumos_unitarios = {}
 for insumo in st.session_state.insumos_base:
-    custo_unitario = (insumo['valor_pacote'] / insumo['qtd_pacote']) if insumo['qtd_pacote'] > 0 else 0.0
+    # Verificação da nova chave 'unidade'
+    qtd_pacote = insumo.get('qtd_pacote', 1)
+    if qtd_pacote > 0:
+        custo_unitario = insumo['valor_pacote'] / qtd_pacote
+    else:
+        custo_unitario = 0.0
+        
     insumos_unitarios[insumo['nome']] = custo_unitario
 
 # 2. CÁLCULO DO CUSTO TOTAL DE MATERIAIS DO PRODUTO
@@ -152,7 +159,7 @@ for material in st.session_state.materiais_produto:
 ) = calcular_lucro_real(
     st.session_state.custos_venda['preco_venda'],
     custo_total_materiais_produto,
-    st.session_state.custos_venda['custo_fixo_mo_embalagem'], 
+    st.session_state.custos_venda['custo_fixo_mo_embalagem'], # Valor zerado
     st.session_state.custos_venda['taxa_imposto'],
     st.session_state.custos_venda
 )
@@ -211,7 +218,7 @@ with tab1:
         st.info(f"""
         **Custos de Produção (R$):**
         * **Materiais do Produto:** {formatar_brl(custo_total_materiais_produto)}
-        * **Custo Fixo de Embalagem:** {formatar_brl(st.session_state.custos_venda['custo_fixo_mo_embalagem'])}
+        * **Outros Custos Fixos (Zerado):** {formatar_brl(st.session_state.custos_venda['custo_fixo_mo_embalagem'])}
         * **Custo Base Total:** {formatar_brl(custo_producao_base)}
         * **Lucro Bruto (Antes de Taxas):** {formatar_brl(lucro_bruto)}
         """)
@@ -229,25 +236,13 @@ with tab1:
         st.error(f"⚠️ **Atenção:** Você precisa aumentar o preço de venda ou reduzir os custos em {formatar_brl(abs(lucro_real))} para ter lucro!")
 
 # ==========================================================================
-# --- ABA 2: MATERIAIS & CUSTOS (REESTRUTURADA) ---
+# --- ABA 2: MATERIAIS & CUSTOS (REESTRUTURADA E LIMPA) ---
 # ==========================================================================
 with tab2:
     
-    # --- CUSTO FIXO DE EMBALAGEM (Mão de Obra removida) ---
-    st.header("Custo Fixo de Embalagem")
-    st.session_state.custos_venda['custo_fixo_mo_embalagem'] = st.number_input(
-        "Custo da Embalagem (Caixa/Plástico) por Unidade (R$)",
-        min_value=0.00,
-        value=st.session_state.custos_venda['custo_fixo_mo_embalagem'],
-        step=0.01,
-        format="%.2f",
-        help="Custo fixo da embalagem utilizada (caixa, plástico bolha, etc.)."
-    )
-    st.markdown("---")
-
-    # --- CUSTO DO MATERIAL (PACOTES) ---
-    st.header("Custo do Material (Pacotes)")
-    st.caption("Defina o custo unitário real de materiais comprados em embalagens.")
+    # --- CUSTO DO MATERIAL (PACOTES) COM SELETOR ML/UN ---
+    st.header("Custo do Material (Pacotes e Embalagens)")
+    st.caption("Defina o custo unitário (UN) ou por mililitro (ML) dos materiais que você compra.")
 
     col_i_add, col_i_remove = st.columns([1, 1])
     with col_i_add:
@@ -256,8 +251,9 @@ with tab2:
         st.button("➖ Remover Último Material", on_click=remover_ultimo_insumo, use_container_width=True, type="secondary")
 
     for i, insumo in enumerate(st.session_state.insumos_base):
-        col_nome, col_pacote, col_qtd, col_unidade = st.columns([2, 1.5, 1, 1.5])
+        col_nome, col_pacote, col_qtd, col_unidade_tipo, col_unidade_custo = st.columns([2, 1.5, 1, 1, 1.5])
         
+        # 1. Nome do Material
         with col_nome:
             insumo['nome'] = st.text_input(
                 "Nome", 
@@ -265,6 +261,8 @@ with tab2:
                 key=f"insumo_nome_{i}",
                 label_visibility="collapsed" if i > 0 else "visible"
             )
+
+        # 2. Valor do Pacote
         with col_pacote:
             insumo['valor_pacote'] = st.number_input(
                 "R$ Pacote", 
@@ -275,28 +273,48 @@ with tab2:
                 key=f"insumo_pacote_{i}",
                 label_visibility="collapsed" if i > 0 else "visible"
             )
+
+        # 3. Quantidade no Pacote
         with col_qtd:
             insumo['qtd_pacote'] = st.number_input(
                 "Qtd/Pacote", 
-                min_value=1, 
-                value=insumo['qtd_pacote'], 
-                step=1,
+                min_value=1.0, 
+                value=insumo.get('qtd_pacote', 1.0), # Usar .get() para compatibilidade
+                step=1.0,
                 key=f"insumo_qtd_{i}",
                 label_visibility="collapsed" if i > 0 else "visible"
             )
 
+        # 4. Seletor de Unidade (UN/ML) - NOVIDADE
+        with col_unidade_tipo:
+            # Inicializa a chave se não existir
+            if 'unidade' not in insumo:
+                insumo['unidade'] = 'UN'
+                
+            insumo['unidade'] = st.selectbox(
+                "Tipo",
+                options=['UN', 'ML'],
+                index=0 if insumo['unidade'] == 'UN' else 1,
+                key=f"insumo_unidade_{i}",
+                label_visibility="collapsed" if i > 0 else "visible"
+            )
+            
+        # Cálculo do Custo Unitário/ML
         custo_unitario = insumos_unitarios.get(insumo['nome'], 0.00)
+        unidade_label = "R$/UN" if insumo['unidade'] == 'UN' else "R$/ML"
         
-        with col_unidade:
+        # 5. Custo Unitário Calculado
+        with col_unidade_custo:
             st.markdown(f"R$ **{custo_unitario:,.4f}**")
             if i == 0:
-                 st.caption("Custo Unitário")
+                 st.caption(unidade_label)
+
 
     st.markdown("---")
 
-    # --- MONTAGEM DO PRODUTO POR UNIDADE ---
+    # --- USO DE MATERIAL POR UNIDADE DO PRODUTO ---
     st.header("Uso de Material por Unidade do Produto")
-    st.caption("Quais materiais e em qual quantidade são usados para *uma* unidade do seu produto.")
+    st.caption("Quais materiais e em qual quantidade (UN ou ML) são usados para *uma* unidade do seu produto.")
     
     col_m_add, col_m_remove = st.columns([1, 1])
     with col_m_add:
@@ -332,12 +350,20 @@ with tab2:
                     key=f"material_nome_{i}",
                     label_visibility="collapsed" if i > 0 else "visible"
                 )
+            
+            # Ajustar a legenda da quantidade usada com base na unidade do insumo (apenas informativo)
+            unidade_tipo_uso = 'UN'
+            for insumo in st.session_state.insumos_base:
+                if insumo['nome'] == material['nome']:
+                    unidade_tipo_uso = insumo['unidade']
+                    break
+
 
         # 2. Campo de Custo Unitário (Editável ou Preenchido)
         with col_custo:
             if material['nome'] == "Outro (Manual)" or not insumos_unitarios or len(insumos_unitarios) == 0:
                 custo_unidade = st.number_input(
-                    "R$ Unidade",
+                    "R$ Unidade/ML",
                     min_value=0.00,
                     value=material['custo_unidade'],
                     step=0.01,
@@ -349,12 +375,12 @@ with tab2:
             else:
                 st.markdown(f"R$ **{material['custo_unidade']:,.4f}**")
                 if i == 0:
-                    st.caption("Custo Unitário")
+                    st.caption("Custo Unitário/ML")
 
         # 3. Campo de Quantidade Usada
         with col_qtd:
             material['qtd_usada'] = st.number_input(
-                "Qtd Usada",
+                f"Qtd Usada ({unidade_tipo_uso})", # Mostra UN ou ML
                 min_value=0.01,
                 value=material['qtd_usada'],
                 step=0.01,
