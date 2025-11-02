@@ -18,14 +18,14 @@ if 'materiais_produto' not in st.session_state:
 # CORREÇÃO DO KEYERROR: Garante que o Session State use a nova estrutura
 if 'custos_venda' not in st.session_state or 'custo_fixo' in st.session_state.custos_venda:
     st.session_state.custos_venda = {
-        'custo_fixo_mo_embalagem': 15.00, # Custo Fixo por Unidade (Mão de Obra, Embalagem)
+        'custo_fixo_mo_embalagem': 15.00,
         'preco_venda': 150.00,
-        'taxa_imposto': 0.0, # Zerado/Removido do UI, mas mantido na estrutura para evitar novos KeyErrors
+        'taxa_imposto': 0.0, 
         
         # CUSTOS DE MARKETPLACE FLEXÍVEIS
         'taxa_comissao': {'tipo': 'percentual', 'valor': 15.0}, 
         'taxa_por_item': {'tipo': 'fixo', 'valor': 3.00},
-        'custo_frete': {'tipo': 'fixo', 'valor': 15.00} # Valor inicial ajustado
+        'custo_frete': {'tipo': 'fixo', 'valor': 15.00}
     }
 
 # --- Funções de Manipulação do Session State (Insumos Base) ---
@@ -85,7 +85,7 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
         venda
     )
     
-    # 2. OUTRAS TAXAS (Mantida para fins de cálculo, mas não exibida no UI)
+    # 2. OUTRAS TAXAS (Imposto)
     valor_taxa_imposto = venda * (tx_imposto / 100) 
     
     # 3. CUSTOS TOTAIS
@@ -143,7 +143,7 @@ for material in st.session_state.materiais_produto:
     custo_total, 
     lucro_bruto, 
     lucro_real, 
-    valor_imposto, # Valor do imposto (mantido, mas não exibido no UI da aba 3)
+    valor_imposto, 
     custo_producao_base,
     valor_comissao,
     valor_item,
@@ -161,14 +161,27 @@ for material in st.session_state.materiais_produto:
 # --- DEFINIÇÃO DAS ABAS ---
 # --------------------------------------------------------------------------
 
-tab1, tab2, tab3 = st.tabs(["1. Resumo & Lucro Final", "2. Insumos & Montagem", "3. Marketplace & Outros Custos"])
+tab1, tab2, tab3 = st.tabs(["1. Resumo & Lucro Final", "2. Insumos & Montagem", "3. Taxas de Venda"])
 
 
 # ==========================================================================
-# --- ABA 1: RESUMO & LUCRO FINAL ---
+# --- ABA 1: RESUMO & LUCRO FINAL (INCLUI CAMPO DE VENDA) ---
 # ==========================================================================
 with tab1:
-    st.header("Análise Rápida de Resultado")
+    st.header("1A. Preço de Venda")
+    
+    # Campo de Venda movido para cá
+    st.session_state.custos_venda['preco_venda'] = st.number_input(
+        "Preço de Venda ao Cliente (R$)",
+        min_value=0.01,
+        value=st.session_state.custos_venda['preco_venda'],
+        step=0.01,
+        format="%.2f",
+        help="O valor final cobrado do cliente."
+    )
+    
+    st.markdown("---")
+    st.header("1B. Análise Rápida de Resultado")
     
     if lucro_real > 0:
         status = "LUCRO POSITIVO 🎉"
@@ -215,12 +228,24 @@ with tab1:
         st.error(f"⚠️ **Atenção:** Você precisa aumentar o preço de venda ou reduzir os custos em {formatar_brl(abs(lucro_real))} para ter lucro!")
 
 # ==========================================================================
-# --- ABA 2: INSUMOS & MONTAGEM ---
+# --- ABA 2: INSUMOS & MONTAGEM (INCLUI CUSTO FIXO) ---
 # ==========================================================================
 with tab2:
     
+    # --- NOVO CAMPO DE CUSTO FIXO (Movido do Aba 3) ---
+    st.header("2A. Custos Fixos de Produção")
+    st.session_state.custos_venda['custo_fixo_mo_embalagem'] = st.number_input(
+        "Custo Fixo (Mão de Obra e Embalagem) por Unidade (R$)",
+        min_value=0.00,
+        value=st.session_state.custos_venda['custo_fixo_mo_embalagem'],
+        step=0.01,
+        format="%.2f",
+        help="Custos de serviço e valor da embalagem (caixa/plástico) por unidade."
+    )
+    st.markdown("---")
+
     # --- SUB-SEÇÃO: CÁLCULO DE INSUMOS BASE (Valor Unitário por Pacote) ---
-    st.header("2A. 📦 Custo Unitário de Insumos (Pacotes)")
+    st.header("2B. Custo Unitário de Insumos (Pacotes)")
     st.caption("Defina o custo unitário real de materiais comprados em embalagens.")
 
     col_i_add, col_i_remove = st.columns([1, 1])
@@ -269,7 +294,7 @@ with tab2:
     st.markdown("---")
 
     # --- SUB-SEÇÃO: MONTAGEM DO PRODUTO (Uso de Materiais) ---
-    st.header("2B. 🏗️ Montagem do Produto por Unidade")
+    st.header("2C. Montagem do Produto por Unidade")
     st.caption("Quais materiais e em qual quantidade são usados para *uma* unidade do seu produto.")
     
     col_m_add, col_m_remove = st.columns([1, 1])
@@ -349,22 +374,10 @@ with tab2:
 
 
 # ==========================================================================
-# --- ABA 3: MARKETPLACE & OUTROS CUSTOS (SIMPLIFICADA) ---
+# --- ABA 3: TAXAS DE VENDA (SIMPLIFICADA E LIMPA) ---
 # ==========================================================================
 with tab3:
-    st.header("3A. Preço de Venda")
-    
-    st.session_state.custos_venda['preco_venda'] = st.number_input(
-        "Preço de Venda ao Cliente (R$)",
-        min_value=0.01,
-        value=st.session_state.custos_venda['preco_venda'],
-        step=0.01,
-        format="%.2f",
-        help="O valor final cobrado do cliente."
-    )
-    
-    st.markdown("---")
-    st.header("3B. Taxas de Venda e Frete (Marketplace)")
+    st.header("Taxas de Venda (Marketplace e Frete)")
 
     # --- FUNÇÃO AUXILIAR PARA CRIAR O CAMPO DE CUSTO FLEXÍVEL ---
     def custo_flexivel_ui(key, label, valor_calculado):
@@ -399,30 +412,18 @@ with tab3:
         with c_resultado:
              st.metric("Custo em R$", formatar_brl(valor_calculado), label_visibility="collapsed")
              if key == 'taxa_comissao':
-                st.caption("Resultado")
+                st.caption("Custo Calculado")
 
     # --- Aplicação dos Campos ---
     
-    # 1. Taxa de Comissão (Marketplace)
-    st.subheader("Taxa de Comissão (Marketplace)")
+    st.markdown("##### Taxa de Comissão (Marketplace)")
     custo_flexivel_ui('taxa_comissao', 'Comissão', valor_comissao)
-
-    # 2. Taxa por Item Vendido
-    st.subheader("Taxa por Item Vendido")
-    custo_flexivel_ui('taxa_por_item', 'Taxa p/ Item', valor_item)
-
-    # 3. Custo de Frete
-    st.subheader("Custo de Frete (Pago por Você)")
-    custo_flexivel_ui('custo_frete', 'Frete', valor_frete)
-
     st.markdown("---")
-    st.header("3C. Custo Fixo por Unidade")
 
-    st.session_state.custos_venda['custo_fixo_mo_embalagem'] = st.number_input(
-        "Custo Fixo (Mão de Obra e Embalagem) (R$)",
-        min_value=0.00,
-        value=st.session_state.custos_venda['custo_fixo_mo_embalagem'],
-        step=0.01,
-        format="%.2f",
-        help="Custos de serviço e valor da embalagem (caixa/plástico) por unidade."
-    )
+
+    st.markdown("##### Taxa por Item Vendido")
+    custo_flexivel_ui('taxa_por_item', 'Taxa p/ Item', valor_item)
+    st.markdown("---")
+
+    st.markdown("##### Custo de Frete (Pago por Você)")
+    custo_flexivel_ui('custo_frete', 'Frete', valor_frete)
