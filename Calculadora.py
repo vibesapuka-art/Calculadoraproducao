@@ -51,15 +51,17 @@ def remover_ultimo_material_produto():
     elif len(st.session_state.materiais_produto) == 1:
         st.session_state.materiais_produto[0] = {'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}
 
-# --- Função de Cálculo Principal (Direto - Para Detalhamento) ---
+# --- Função de Cálculo Principal (Direto - CORRIGIDA A INDENTAÇÃO) ---
 
 def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx_imposto, taxas_mp):
     
+    # Esta função auxiliar DEVE estar DENTRO ou no escopo global
     def calcular_custo_flexivel(tipo, valor, venda):
         if tipo == 'percentual':
             return venda * (valor / 100)
         return valor
     
+    # As variáveis de custo DEVEM ser calculadas AQUI DENTRO:
     valor_taxa_comissao = calcular_custo_flexivel(
         taxas_mp['taxa_comissao']['tipo'],
         taxas_mp['taxa_comissao']['valor'],
@@ -89,11 +91,11 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
         custo_total_venda, 
         lucro_bruto, 
         lucro_real, 
-        valor_taxa_imposto, # <--- VARIÁVEL NO ÍNDICE 4
+        valor_taxa_imposto,
         custo_producao_base,
-        valor_comissao,
-        valor_item,
-        valor_frete
+        valor_taxa_comissao, # Esta variável agora é local e existe
+        valor_taxa_por_item,
+        valor_custo_frete
     )
 
 # --- Função de Cálculo Reverso (Lucro Fixo Desejado) ---
@@ -144,7 +146,7 @@ st.title("💰 Calculadora de Preço Ideal por Lucro Desejado")
 st.caption("Ajuste os **Materiais** e as **Taxas de Venda** e use a Aba 1 para definir seu Preço.")
 
 # --------------------------------------------------------------------------
-# --- CÁLCULO E PREPARAÇÃO DE DADOS ANTES DAS ABAS (CORRIGIDO NOVAMENTE) ---
+# --- CÁLCULO E PREPARAÇÃO DE DADOS ANTES DAS ABAS ---
 # --------------------------------------------------------------------------
 
 # 1. CÁLCULO DE INSUMOS BASE
@@ -509,7 +511,6 @@ with tab3:
 
     st.subheader("Custos de Venda (Marketplace)")
     
-    st.markdown("##### Taxa de Comissão")
     custo_flexivel_ui('taxa_comissao', 'Comissão (MP)', valor_comissao)
     st.markdown("---")
 
