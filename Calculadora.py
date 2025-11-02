@@ -15,13 +15,17 @@ if 'insumos_base' not in st.session_state:
 if 'materiais_produto' not in st.session_state:
     st.session_state.materiais_produto = [{'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}]
 
-# Inicializa o Session State para outros custos/venda (valores padrão)
+# NOVO FORMATO DOS CUSTOS DE VENDA PARA SUPORTAR TAXAS FIXAS OU PERCENTUAIS
 if 'custos_venda' not in st.session_state:
     st.session_state.custos_venda = {
-        'custo_fixo': 15.00,
+        'custo_fixo_mo_embalagem': 15.00, # Custo Fixo por Unidade (Mão de Obra, Embalagem)
         'preco_venda': 150.00,
-        'taxa_marketplace': 15.0,
-        'taxa_imposto': 6.0
+        'taxa_imposto': 6.0, # Mantido como percentual simples por enquanto
+        
+        # NOVOS CUSTOS DE MARKETPLACE FLEXÍVEIS
+        'taxa_comissao': {'tipo': 'percentual', 'valor': 15.0}, 
+        'taxa_por_item': {'tipo': 'fixo', 'valor': 3.00},
+        'custo_frete': {'tipo': 'percentual', 'valor': 0.0}
     }
 
 # --- Funções de Manipulação do Session State (Insumos Base) ---
@@ -50,21 +54,64 @@ def remover_ultimo_material_produto():
     elif len(st.session_state.materiais_produto) == 1:
         st.session_state.materiais_produto[0] = {'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}
 
-# --- Função de Cálculo Principal (CORRIGIDA) ---
+# --- Função de Cálculo Principal (ATUALIZADA) ---
 
-def calcular_lucro_real(venda, custo_material_total, custo_fixo_total, tx_mp, tx_imposto):
-    """Calcula todos os custos e lucros. Garante o retorno de 6 valores."""
-    valor_taxa_mp = venda * (tx_mp / 100)
-    valor_taxa_imposto = venda * (tx_imposto / 100) # Variável definida: valor_taxa_imposto
+def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx_imposto, taxas_mp):
     
-    custo_total_venda = custo_material_total + custo_fixo_total + valor_taxa_mp + valor_taxa_imposto
+    # 1. CÁLCULO DOS CUSTOS DO MARKETPLACE (FRETE, COMISSÃO, ITEM)
     
-    custo_producao_base = custo_material_total + custo_fixo_total
+    # Função auxiliar para calcular o custo (Fixo ou Percentual)
+    def calcular_custo_flexivel(tipo, valor, venda):
+        if tipo == 'percentual':
+            return venda * (valor / 100)
+        return valor # É um custo fixo
+    
+    # Taxa de Comissão
+    valor_taxa_comissao = calcular_custo_flexivel(
+        taxas_mp['taxa_comissao']['tipo'],
+        taxas_mp['taxa_comissao']['valor'],
+        venda
+    )
+
+    # Taxa por Item Vendido
+    valor_taxa_por_item = calcular_custo_flexivel(
+        taxas_mp['taxa_por_item']['tipo'],
+        taxas_mp['taxa_por_item']['valor'],
+        venda
+    )
+
+    # Custo de Frete (assumindo que é pago pelo vendedor e entra no cálculo)
+    valor_custo_frete = calcular_custo_flexivel(
+        taxas_mp['custo_frete']['tipo'],
+        taxas_mp['custo_frete']['valor'],
+        venda
+    )
+    
+    # 2. OUTRAS TAXAS
+    valor_taxa_imposto = venda * (tx_imposto / 100) 
+    
+    # 3. CUSTOS TOTAIS
+    custos_marketplace = valor_taxa_comissao + valor_taxa_por_item + valor_custo_frete
+    
+    custo_producao_base = custo_material_total + custo_fixo_mo_embalagem
+    
+    custo_total_venda = custo_producao_base + custos_marketplace + valor_taxa_imposto
+    
+    # 4. LUCROS
     lucro_bruto = venda - custo_producao_base
     lucro_real = venda - custo_total_venda
     
-    # RETORNO COMPLETO E CORRETO DE 6 VARIÁVEIS (CORREÇÃO DO NameError)
-    return custo_total_venda, lucro_bruto, lucro_real, valor_taxa_mp, valor_taxa_imposto, custo_producao_base
+    # Retorno completo dos valores
+    return (
+        custo_total_venda, 
+        lucro_bruto, 
+        lucro_real, 
+        valor_taxa_imposto, 
+        custo_producao_base,
+        valor_taxa_comissao,
+        valor_taxa_por_item,
+        valor_custo_frete
+    )
 
 # --- Função de Formatação (Padrão BRL) ---
 
@@ -93,15 +140,24 @@ for material in st.session_state.materiais_produto:
     qtd_usada = material.get('qtd_usada', 0.00)
     custo_total_materiais_produto += custo_unitario * qtd_usada
 
-# 3. CÁLCULO FINAL 
-custo_total, lucro_bruto, lucro_real, valor_mp, valor_imposto, custo_producao_base = calcular_lucro_real(
+# 3. CÁLCULO FINAL (Agora espera 8 retornos)
+(
+    custo_total, 
+    lucro_bruto, 
+    lucro_real, 
+    valor_imposto, 
+    custo_producao_base,
+    valor_comissao,
+    valor_item,
+    valor_frete
+) = calcular_lucro_real(
     st.session_state.custos_venda['preco_venda'],
     custo_total_materiais_produto,
-    st.session_state.custos_venda['custo_fixo'],
-    st.session_state.custos_venda['taxa_marketplace'],
-    st.session_state.custos_venda['taxa_imposto']
+    st.session_state.custos_venda['custo_fixo_mo_embalagem'],
+    st.session_state.custos_venda['taxa_imposto'],
+    st.session_state.custos_venda # Passa o dicionário completo de taxas
 )
-# Nota: valor_imposto recebe valor_taxa_imposto da função
+
 
 # --------------------------------------------------------------------------
 # --- DEFINIÇÃO DAS ABAS ---
@@ -143,16 +199,18 @@ with tab1:
         st.info(f"""
         **Custos de Produção (R$):**
         * **Materiais do Produto:** {formatar_brl(custo_total_materiais_produto)}
-        * **Custos Fixos/MO/Embalagem:** {formatar_brl(st.session_state.custos_venda['custo_fixo'])}
+        * **Custos Fixos (MO/Embalagem):** {formatar_brl(st.session_state.custos_venda['custo_fixo_mo_embalagem'])}
         * **Custo Base Total:** {formatar_brl(custo_producao_base)}
+        * **Lucro Bruto (Antes de Taxas):** {formatar_brl(lucro_bruto)}
         """)
 
     with col_d2:
         st.info(f"""
-        **Custos Variáveis (R$):**
-        * **Taxa do Marketplace ({st.session_state.custos_venda['taxa_marketplace']}%):** {formatar_brl(valor_mp)}
+        **Custos de Venda (R$):**
+        * **Taxa de Comissão:** {formatar_brl(valor_comissao)}
+        * **Taxa por Item:** {formatar_brl(valor_item)}
+        * **Custo de Frete:** {formatar_brl(valor_frete)}
         * **Impostos/Outras Taxas ({st.session_state.custos_venda['taxa_imposto']}%):** {formatar_brl(valor_imposto)}
-        * **Lucro Bruto (Antes de Taxas):** {formatar_brl(lucro_bruto)}
         """)
 
     if lucro_real <= 0:
@@ -293,7 +351,7 @@ with tab2:
 
 
 # ==========================================================================
-# --- ABA 3: MARKETPLACE & OUTROS CUSTOS ---
+# --- ABA 3: MARKETPLACE & OUTROS CUSTOS (REESTRUTURADA) ---
 # ==========================================================================
 with tab3:
     st.header("3A. Preço de Venda")
@@ -308,21 +366,63 @@ with tab3:
     )
     
     st.markdown("---")
-    st.header("3B. Taxas e Custos Variáveis")
+    st.header("3B. Taxas do Marketplace e Frete")
 
-    col_mp, col_imposto = st.columns(2)
+    # --- FUNÇÃO AUXILIAR PARA CRIAR O CAMPO DE CUSTO FLEXÍVEL ---
+    def custo_flexivel_ui(key, label, valor_calculado):
+        
+        c_tipo, c_valor, c_resultado = st.columns([1, 1.5, 1])
 
-    with col_mp:
-        st.session_state.custos_venda['taxa_marketplace'] = st.number_input(
-            "Taxa do Marketplace (%)",
-            min_value=0.0,
-            max_value=100.0,
-            value=st.session_state.custos_venda['taxa_marketplace'],
-            step=0.1,
-            format="%.2f",
-            help="Percentual cobrado pela plataforma (Ex: 15%)."
-        )
-        st.caption(f"Valor em R$: **{formatar_brl(valor_mp)}**")
+        with c_tipo:
+            st.session_state.custos_venda[key]['tipo'] = st.radio(
+                label="Tipo",
+                options=['percentual', 'fixo'],
+                format_func=lambda x: "%" if x == 'percentual' else "R$",
+                index=0 if st.session_state.custos_venda[key]['tipo'] == 'percentual' else 1,
+                key=f"{key}_tipo",
+                label_visibility="collapsed"
+            )
+            if key == 'taxa_comissao':
+                st.caption("Comissão")
+            elif key == 'taxa_por_item':
+                st.caption("Taxa p/ Item")
+            elif key == 'custo_frete':
+                st.caption("Frete")
+
+
+        is_percent = st.session_state.custos_venda[key]['tipo'] == 'percentual'
+        
+        with c_valor:
+            st.session_state.custos_venda[key]['valor'] = st.number_input(
+                label=label,
+                min_value=0.00,
+                max_value=100.0 if is_percent else 100000.0,
+                value=st.session_state.custos_venda[key]['valor'],
+                step=0.01 if is_percent else 0.10,
+                format="%.2f",
+                key=f"{key}_valor",
+                label_visibility="collapsed"
+            )
+
+        with c_resultado:
+             st.metric("Custo em R$", formatar_brl(valor_calculado), label_visibility="collapsed")
+             if key == 'taxa_comissao':
+                st.caption("Resultado")
+
+    # --- Aplicação dos Campos ---
+    st.subheader("Taxa de Comissão (Marketplace)")
+    custo_flexivel_ui('taxa_comissao', 'Comissão (%) ou R$', valor_comissao)
+
+    st.subheader("Taxa por Item Vendido")
+    custo_flexivel_ui('taxa_por_item', 'Taxa p/ Item (%) ou R$', valor_item)
+
+    st.subheader("Custo de Frete (Pago por Você)")
+    custo_flexivel_ui('custo_frete', 'Frete (%) ou R$', valor_frete)
+
+    st.markdown("---")
+    st.header("3C. Impostos e Outros Custos Fixos")
+
+    col_imposto, col_fixo = st.columns(2)
 
     with col_imposto:
         st.session_state.custos_venda['taxa_imposto'] = st.number_input(
@@ -332,18 +432,17 @@ with tab3:
             value=st.session_state.custos_venda['taxa_imposto'],
             step=0.1,
             format="%.2f",
-            help="Simples Nacional, taxas bancárias, etc. (Ex: 6%)."
+            help="Ex: Simples Nacional, taxas bancárias. (Percentual sobre a venda)"
         )
         st.caption(f"Valor em R$: **{formatar_brl(valor_imposto)}**")
     
-    st.markdown("---")
-    st.header("3C. Custos Fixos por Unidade")
+    with col_fixo:
+        st.session_state.custos_venda['custo_fixo_mo_embalagem'] = st.number_input(
+            "Custo Fixo (Mão de Obra e Embalagem) (R$)",
+            min_value=0.00,
+            value=st.session_state.custos_venda['custo_fixo_mo_embalagem'],
+            step=0.01,
+            format="%.2f",
+            help="Custos de serviço e valor da embalagem (caixa/plástico) por unidade."
+        )
 
-    st.session_state.custos_venda['custo_fixo'] = st.number_input(
-        "Custo Fixo (Mão de Obra, Embalagem, Frete/Envio) (R$)",
-        min_value=0.00,
-        value=st.session_state.custos_venda['custo_fixo'],
-        step=0.01,
-        format="%.2f",
-        help="Custos de serviço, valor da embalagem (caixa/plástico) e frete pago por unidade (se houver)."
-    )
