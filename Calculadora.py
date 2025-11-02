@@ -10,11 +10,9 @@ st.set_page_config(
 
 # Inicializa o Session State para ambos os tipos de entrada
 if 'insumos_base' not in st.session_state:
-    # Estrutura: [{'nome': 'Papel A4', 'valor_pacote': 27.50, 'qtd_pacote': 50}]
     st.session_state.insumos_base = [{'nome': 'Ex: Papel Pacote', 'valor_pacote': 27.50, 'qtd_pacote': 50}]
 
 if 'materiais_produto' not in st.session_state:
-    # CORREÇÃO DE TIPO (float) aplicada para evitar StreamlitMixedNumericTypesError
     st.session_state.materiais_produto = [{'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}]
 
 # Inicializa o Session State para outros custos/venda (valores padrão)
@@ -43,7 +41,6 @@ def remover_ultimo_insumo():
 
 def adicionar_material_produto():
     """Adiciona um item à lista de materiais usados na montagem do produto."""
-    # CORREÇÃO DE TIPO (float)
     st.session_state.materiais_produto.append({'nome': '', 'custo_unidade': 0.00, 'qtd_usada': 1.0})
 
 def remover_ultimo_material_produto():
@@ -58,7 +55,7 @@ def remover_ultimo_material_produto():
 def calcular_lucro_real(venda, custo_material_total, custo_fixo_total, tx_mp, tx_imposto):
     """Calcula todos os custos e lucros. Garante o retorno de 6 valores."""
     valor_taxa_mp = venda * (tx_mp / 100)
-    valor_taxa_imposto = venda * (tx_imposto / 100)
+    valor_taxa_imposto = venda * (tx_imposto / 100) # Variável definida: valor_taxa_imposto
     
     custo_total_venda = custo_material_total + custo_fixo_total + valor_taxa_mp + valor_taxa_imposto
     
@@ -66,8 +63,8 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_total, tx_mp, tx
     lucro_bruto = venda - custo_producao_base
     lucro_real = venda - custo_total_venda
     
-    # RETORNO COMPLETO DE 6 VARIÁVEIS (CORREÇÃO DO NameError)
-    return custo_total_venda, lucro_bruto, lucro_real, valor_taxa_mp, valor_imposto, custo_producao_base
+    # RETORNO COMPLETO E CORRETO DE 6 VARIÁVEIS (CORREÇÃO DO NameError)
+    return custo_total_venda, lucro_bruto, lucro_real, valor_taxa_mp, valor_taxa_imposto, custo_producao_base
 
 # --- Função de Formatação (Padrão BRL) ---
 
@@ -104,6 +101,7 @@ custo_total, lucro_bruto, lucro_real, valor_mp, valor_imposto, custo_producao_ba
     st.session_state.custos_venda['taxa_marketplace'],
     st.session_state.custos_venda['taxa_imposto']
 )
+# Nota: valor_imposto recebe valor_taxa_imposto da função
 
 # --------------------------------------------------------------------------
 # --- DEFINIÇÃO DAS ABAS ---
