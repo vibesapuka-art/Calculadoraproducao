@@ -18,7 +18,7 @@ if 'materiais_produto' not in st.session_state:
 # Garante que o Session State use a estrutura mais recente
 if 'custos_venda' not in st.session_state or 'custo_fixo_mo_embalagem' not in st.session_state.custos_venda:
     st.session_state.custos_venda = {
-        'custo_fixo_mo_embalagem': 0.00, # Mantido zerado no cálculo, mas necessário para a função principal
+        'custo_fixo_mo_embalagem': 0.00, # Valor zerado
         'preco_venda': 150.00,
         'taxa_imposto': 0.0, 
         
@@ -80,7 +80,7 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
     )
 
     # Custo de Frete
-    valor_custo_frete = calcular_custo_flexivel(
+    valor_custo_frete = calcular_custo_flexivel( # Variável definida aqui como valor_custo_frete
         taxas_mp['custo_frete']['tipo'],
         taxas_mp['custo_frete']['valor'],
         venda
@@ -110,7 +110,7 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
         custo_producao_base,
         valor_taxa_comissao,
         valor_taxa_por_item,
-        valor_frete
+        valor_custo_frete # <-- CORREÇÃO: Usando a variável definida corretamente
     )
 
 # --- Função de Formatação (Padrão BRL) ---
@@ -155,7 +155,7 @@ for material in st.session_state.materiais_produto:
     custo_producao_base,
     valor_comissao,
     valor_item,
-    valor_frete
+    valor_frete # Este é o nome da variável que recebe o 8º retorno
 ) = calcular_lucro_real(
     st.session_state.custos_venda['preco_venda'],
     custo_total_materiais_produto,
@@ -285,7 +285,7 @@ with tab2:
                 label_visibility="collapsed" if i > 0 else "visible"
             )
 
-        # 4. Seletor de Unidade (UN/ML) - NOVIDADE
+        # 4. Seletor de Unidade (UN/ML)
         with col_unidade_tipo:
             # Inicializa a chave se não existir
             if 'unidade' not in insumo:
