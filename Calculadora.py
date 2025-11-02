@@ -18,7 +18,7 @@ if 'materiais_produto' not in st.session_state:
 if 'custos_venda' not in st.session_state or 'custo_fixo_mo_embalagem' not in st.session_state.custos_venda:
     st.session_state.custos_venda = {
         'custo_fixo_mo_embalagem': 0.00,
-        'preco_venda': 150.00, # Mantido, mas não usado na Aba 1
+        'preco_venda': 100.00, # Mantido valor padrão para MOCK
         'taxa_imposto': 0.0, 
         
         # CUSTOS DE MARKETPLACE FLEXÍVEIS
@@ -27,7 +27,7 @@ if 'custos_venda' not in st.session_state or 'custo_fixo_mo_embalagem' not in st
         'custo_frete': {'tipo': 'fixo', 'valor': 15.00}
     }
 
-# --- Funções de Manipulação do Session State (Insumos Base) ---
+# --- Funções de Manipulação do Session State (Mantidas) ---
 
 def adicionar_insumo():
     """Adiciona um novo insumo base (pacote/unidade)"""
@@ -39,8 +39,6 @@ def remover_ultimo_insumo():
         st.session_state.insumos_base.pop()
     elif len(st.session_state.insumos_base) == 1:
         st.session_state.insumos_base[0] = {'nome': 'Ex: Papel Pacote', 'valor_pacote': 0.00, 'qtd_pacote': 1.0, 'unidade': 'UN'}
-
-# --- Funções de Manipulação do Session State (Montagem do Produto) ---
 
 def adicionar_material_produto():
     """Adiciona um item à lista de materiais usados na montagem do produto."""
@@ -146,7 +144,7 @@ st.title("💰 Calculadora de Preço Ideal por Lucro Desejado")
 st.caption("Ajuste os **Materiais** e as **Taxas de Venda** e use a Aba 1 para definir seu Preço.")
 
 # --------------------------------------------------------------------------
-# --- CÁLCULO E PREPARAÇÃO DE DADOS ANTES DAS ABAS ---
+# --- CÁLCULO E PREPARAÇÃO DE DADOS ANTES DAS ABAS (CORRIGIDO) ---
 # --------------------------------------------------------------------------
 
 # 1. CÁLCULO DE INSUMOS BASE
@@ -167,6 +165,26 @@ for material in st.session_state.materiais_produto:
     qtd_usada = material.get('qtd_usada', 0.00)
     custo_total_materiais_produto += custo_unitario * qtd_usada
 
+# 3. CÁLCULO MOCK (Corrigindo o NameError para a Aba 3)
+# Usaremos um preço de R$ 100,00 APENAS para calcular os custos percentuais
+# na Aba 3 (Taxas de Venda) para exibição.
+PRECO_MOCK = 100.00
+
+(
+    _, _, _, _, _,
+    valor_comissao,
+    valor_item,
+    valor_frete 
+) = calcular_lucro_real(
+    PRECO_MOCK, # Usando o mock price
+    custo_total_materiais_produto, # Custo de material é usado, mas irrelevante para o mock
+    st.session_state.custos_venda['custo_fixo_mo_embalagem'], 
+    st.session_state.custos_venda['taxa_imposto'],
+    st.session_state.custos_venda
+)
+# Nota: Os custos de material/base acima são ignorados no retorno (usamos '_')
+# pois a Aba 3 só precisa de valor_comissao, valor_item, valor_frete.
+
 
 # --------------------------------------------------------------------------
 # --- DEFINIÇÃO DAS ABAS ---
@@ -176,7 +194,7 @@ tab1, tab2, tab3 = st.tabs(["1. Preço Sugerido (Lucro R$)", "2. Materiais & Cus
 
 
 # ==========================================================================
-# --- ABA 1: PREÇO SUGERIDO (SIMPLIFICADA) ---
+# --- ABA 1: PREÇO SUGERIDO (MANTIDA) ---
 # ==========================================================================
 with tab1:
     
@@ -271,7 +289,7 @@ with tab1:
 
 
 # ==========================================================================
-# --- ABA 2: MATERIAIS & CUSTOS --- 
+# --- ABA 2: MATERIAIS & CUSTOS --- (MANTIDA)
 # ==========================================================================
 with tab2:
     
@@ -434,7 +452,7 @@ with tab2:
 
 
 # ==========================================================================
-# --- ABA 3: TAXAS DE VENDA --- 
+# --- ABA 3: TAXAS DE VENDA --- (CORRIGIDA)
 # ==========================================================================
 with tab3:
     st.header("Taxas de Venda (Marketplace, Impostos e Frete)")
@@ -485,8 +503,9 @@ with tab3:
 
         with c_resultado:
              st.metric("Custo em R$", formatar_brl(valor_calculado), label_visibility="collapsed")
+             # Informa ao usuário que o cálculo é baseado no preço mock
              if key == 'taxa_comissao':
-                st.caption("Custo Calculado")
+                st.caption(f"Custo Calculado (Base R$ {PRECO_MOCK:,.2f})")
 
     st.subheader("Custos de Venda (Marketplace)")
     
