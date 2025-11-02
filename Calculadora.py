@@ -18,7 +18,7 @@ if 'materiais_produto' not in st.session_state:
 if 'custos_venda' not in st.session_state or 'custo_fixo_mo_embalagem' not in st.session_state.custos_venda:
     st.session_state.custos_venda = {
         'custo_fixo_mo_embalagem': 0.00,
-        'preco_venda': 100.00, # Mantido valor padrão para MOCK
+        'preco_venda': 100.00, # Valor padrão para MOCK
         'taxa_imposto': 0.0, 
         
         # CUSTOS DE MARKETPLACE FLEXÍVEIS
@@ -89,7 +89,7 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
         custo_total_venda, 
         lucro_bruto, 
         lucro_real, 
-        valor_imposto, 
+        valor_taxa_imposto, # <--- VARIÁVEL NO ÍNDICE 4
         custo_producao_base,
         valor_comissao,
         valor_item,
@@ -144,7 +144,7 @@ st.title("💰 Calculadora de Preço Ideal por Lucro Desejado")
 st.caption("Ajuste os **Materiais** e as **Taxas de Venda** e use a Aba 1 para definir seu Preço.")
 
 # --------------------------------------------------------------------------
-# --- CÁLCULO E PREPARAÇÃO DE DADOS ANTES DAS ABAS (CORRIGIDO) ---
+# --- CÁLCULO E PREPARAÇÃO DE DADOS ANTES DAS ABAS (CORRIGIDO NOVAMENTE) ---
 # --------------------------------------------------------------------------
 
 # 1. CÁLCULO DE INSUMOS BASE
@@ -165,26 +165,26 @@ for material in st.session_state.materiais_produto:
     qtd_usada = material.get('qtd_usada', 0.00)
     custo_total_materiais_produto += custo_unitario * qtd_usada
 
-# 3. CÁLCULO MOCK (Corrigindo o NameError para a Aba 3)
-# Usaremos um preço de R$ 100,00 APENAS para calcular os custos percentuais
-# na Aba 3 (Taxas de Venda) para exibição.
+# 3. CÁLCULO MOCK (Corrigindo o NameError com unpacking correto)
 PRECO_MOCK = 100.00
 
+# Chamada da função para obter as 8 variáveis, ignorando as 5 primeiras.
 (
-    _, _, _, _, _,
-    valor_comissao,
-    valor_item,
-    valor_frete 
+    _, 
+    _, 
+    _, 
+    _, 
+    _, 
+    valor_comissao, # 6. Taxa de Comissão (Marketplace)
+    valor_item,     # 7. Taxa por Item
+    valor_frete     # 8. Custo de Frete
 ) = calcular_lucro_real(
-    PRECO_MOCK, # Usando o mock price
-    custo_total_materiais_produto, # Custo de material é usado, mas irrelevante para o mock
+    PRECO_MOCK, 
+    custo_total_materiais_produto,
     st.session_state.custos_venda['custo_fixo_mo_embalagem'], 
     st.session_state.custos_venda['taxa_imposto'],
     st.session_state.custos_venda
 )
-# Nota: Os custos de material/base acima são ignorados no retorno (usamos '_')
-# pois a Aba 3 só precisa de valor_comissao, valor_item, valor_frete.
-
 
 # --------------------------------------------------------------------------
 # --- DEFINIÇÃO DAS ABAS ---
@@ -452,7 +452,7 @@ with tab2:
 
 
 # ==========================================================================
-# --- ABA 3: TAXAS DE VENDA --- (CORRIGIDA)
+# --- ABA 3: TAXAS DE VENDA --- (MANTIDA)
 # ==========================================================================
 with tab3:
     st.header("Taxas de Venda (Marketplace, Impostos e Frete)")
