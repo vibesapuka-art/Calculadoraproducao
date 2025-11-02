@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Calculadora de Lucro Real</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>💰 Calculadora de Lucro de Produção</h1>
+
+    <div id="formulario-calculadora">
+        <h2>Custos e Vendas</h2>
+        <label for="custoMaterial">Custo Total de Materiais (R$):</label>
+        <input type="number" id="custoMaterial" value="0"><br><br>
+        
+        <label for="precoVenda">Preço de Venda (R$):</label>
+        <input type="number" id="precoVenda" value="0"><br><br>
+
+        <h2>Taxas e Percentuais</h2>
+        <label for="taxaMarketplace">Taxa do Marketplace (%):</label>
+        <input type="number" id="taxaMarketplace" value="15"><br><br>
+        
+        <label for="custosVariaveis">Outros Custos Variáveis (%) ou (R$):</label>
+        <input type="number" id="custosVariaveis" value="5"><br><br>
+        
+        <button onclick="calcularLucro()">Calcular Lucro Real</button>
+    </div>
+
+    <hr>
+    
+    <h2>Resultado</h2>
+    <p>Lucro Bruto: <span id="lucroBruto">R$ 0.00</span></p>
+    <p>Taxas e Custos Totais: <span id="taxasTotais">R$ 0.00</span></p>
+    <h3>Lucro Real na Venda: <span id="lucroReal">R$ 0.00</span></h3>
+
+    <script src="script.js"></script>
+</body>
+</html>
