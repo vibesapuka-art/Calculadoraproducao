@@ -8,9 +8,9 @@ st.set_page_config(
     layout="wide" 
 )
 
-# Inicializa o Session State. Adicionamos 'unidade' ao insumo base.
+# Inicializa o Session State. CORREÇÃO: qtd_pacote deve ser FLOAT (50.0)
 if 'insumos_base' not in st.session_state:
-    st.session_state.insumos_base = [{'nome': 'Ex: Papel Pacote', 'valor_pacote': 27.50, 'qtd_pacote': 50, 'unidade': 'UN'}]
+    st.session_state.insumos_base = [{'nome': 'Ex: Papel Pacote', 'valor_pacote': 27.50, 'qtd_pacote': 50.0, 'unidade': 'UN'}]
 
 if 'materiais_produto' not in st.session_state:
     st.session_state.materiais_produto = [{'nome': 'Ex: Material A', 'custo_unidade': 0.00, 'qtd_usada': 1.0}]
@@ -32,15 +32,16 @@ if 'custos_venda' not in st.session_state or 'custo_fixo_mo_embalagem' not in st
 
 def adicionar_insumo():
     """Adiciona um novo insumo base (pacote/unidade)"""
-    # Adicionamos 'unidade' por padrão como 'UN'
-    st.session_state.insumos_base.append({'nome': '', 'valor_pacote': 0.00, 'qtd_pacote': 1, 'unidade': 'UN'})
+    # CORREÇÃO: qtd_pacote deve ser FLOAT (1.0)
+    st.session_state.insumos_base.append({'nome': '', 'valor_pacote': 0.00, 'qtd_pacote': 1.0, 'unidade': 'UN'})
 
 def remover_ultimo_insumo():
     """Remove o último insumo base adicionado."""
     if len(st.session_state.insumos_base) > 1:
         st.session_state.insumos_base.pop()
     elif len(st.session_state.insumos_base) == 1:
-        st.session_state.insumos_base[0] = {'nome': 'Ex: Papel Pacote', 'valor_pacote': 0.00, 'qtd_pacote': 1, 'unidade': 'UN'}
+        # CORREÇÃO: qtd_pacote deve ser FLOAT (1.0)
+        st.session_state.insumos_base[0] = {'nome': 'Ex: Papel Pacote', 'valor_pacote': 0.00, 'qtd_pacote': 1.0, 'unidade': 'UN'}
 
 # --- Funções de Manipulação do Session State (Montagem do Produto) ---
 
@@ -80,7 +81,7 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
     )
 
     # Custo de Frete
-    valor_custo_frete = calcular_custo_flexivel( # Variável definida aqui como valor_custo_frete
+    valor_custo_frete = calcular_custo_flexivel(
         taxas_mp['custo_frete']['tipo'],
         taxas_mp['custo_frete']['valor'],
         venda
@@ -110,7 +111,7 @@ def calcular_lucro_real(venda, custo_material_total, custo_fixo_mo_embalagem, tx
         custo_producao_base,
         valor_taxa_comissao,
         valor_taxa_por_item,
-        valor_custo_frete # <-- CORREÇÃO: Usando a variável definida corretamente
+        valor_custo_frete
     )
 
 # --- Função de Formatação (Padrão BRL) ---
@@ -131,7 +132,8 @@ st.caption("Insira os dados nas abas 'Materiais' e 'Taxas de Venda' para ver o '
 insumos_unitarios = {}
 for insumo in st.session_state.insumos_base:
     # Verificação da nova chave 'unidade'
-    qtd_pacote = insumo.get('qtd_pacote', 1)
+    # É importante que qtd_pacote seja float aqui também, o que foi garantido acima
+    qtd_pacote = insumo.get('qtd_pacote', 1.0) 
     if qtd_pacote > 0:
         custo_unitario = insumo['valor_pacote'] / qtd_pacote
     else:
@@ -155,11 +157,11 @@ for material in st.session_state.materiais_produto:
     custo_producao_base,
     valor_comissao,
     valor_item,
-    valor_frete # Este é o nome da variável que recebe o 8º retorno
+    valor_frete 
 ) = calcular_lucro_real(
     st.session_state.custos_venda['preco_venda'],
     custo_total_materiais_produto,
-    st.session_state.custos_venda['custo_fixo_mo_embalagem'], # Valor zerado
+    st.session_state.custos_venda['custo_fixo_mo_embalagem'], 
     st.session_state.custos_venda['taxa_imposto'],
     st.session_state.custos_venda
 )
@@ -236,7 +238,7 @@ with tab1:
         st.error(f"⚠️ **Atenção:** Você precisa aumentar o preço de venda ou reduzir os custos em {formatar_brl(abs(lucro_real))} para ter lucro!")
 
 # ==========================================================================
-# --- ABA 2: MATERIAIS & CUSTOS (REESTRUTURADA E LIMPA) ---
+# --- ABA 2: MATERIAIS & CUSTOS (CORRIGIDA) ---
 # ==========================================================================
 with tab2:
     
@@ -276,10 +278,11 @@ with tab2:
 
         # 3. Quantidade no Pacote
         with col_qtd:
+            # TODOS OS VALORES SÃO FLUTUANTES (1.0)
             insumo['qtd_pacote'] = st.number_input(
                 "Qtd/Pacote", 
                 min_value=1.0, 
-                value=insumo.get('qtd_pacote', 1.0), # Usar .get() para compatibilidade
+                value=insumo.get('qtd_pacote', 1.0), 
                 step=1.0,
                 key=f"insumo_qtd_{i}",
                 label_visibility="collapsed" if i > 0 else "visible"
@@ -380,7 +383,7 @@ with tab2:
         # 3. Campo de Quantidade Usada
         with col_qtd:
             material['qtd_usada'] = st.number_input(
-                f"Qtd Usada ({unidade_tipo_uso})", # Mostra UN ou ML
+                f"Qtd Usada ({unidade_tipo_uso})", 
                 min_value=0.01,
                 value=material['qtd_usada'],
                 step=0.01,
